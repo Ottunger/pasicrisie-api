@@ -1,8 +1,15 @@
 'use strict';
 
 const AWS = require('aws-sdk');
+const CognitoExpress = require('cognito-express');
 const dynamo = new AWS.DynamoDB.DocumentClient();
-const s3 = new AWS.S3();
+
+const cognitoExpress = new CognitoExpress({
+    region: 'eu-west-2',
+    cognitoUserPoolId: 'eu-west-2_I3zbY3Ita',
+    tokenUse: 'id',
+    tokenExpiration: 3600000,
+});
 
 exports.handler = (event, context, callback) => {
     const done = (err, res) => {
@@ -19,107 +26,66 @@ exports.handler = (event, context, callback) => {
     };
 
     event.queryStringParameters = event.queryStringParameters || {};
-    let request = undefined;
-
-    switch(event.httpMethod) {
-        case 'GET':
-            if(event.queryStringParameters['k4-last-post']) {
-                const params = {
-                    Bucket: 'quatremille',
-                    Key: 'LAST_POST'
-                };
-                s3.getObject(params, (err, data) => done(err, data && data.Body && data.Body.toString()));
-            } else if(event.queryStringParameters['json']) {
-                const params = {
-                    Bucket: 'quatremille',
-                    Key: 'POSTS'
-                };
-                s3.getObject(params, (err, data) => done(err, data && data.Body && data.Body.toString()));
-            } else if(/\/?quatremille-api\/wp-json\/eventon\/v1\/events\/1/.test(event.path)) {
-                const params = {
-                    Bucket: 'quatremille',
-                    Key: 'EVENTS'
-                };
-                s3.getObject(params, (err, data) => done(err, data && data.Body && data.Body.toString()));
-            } else if(event.queryStringParameters['k4-json-skates']) {
-                dynamo.scan({
-                    TableName: 'quatremille_places'
-                }, (err, data) => {
-                    if(!data || !data.Items) {
-                        done(new Error('Cannot find places'));
-                        return;
-                    }
-                    done(err, data.Items.filter(place => place.published && place.type === 'skate'));
-                });
-            } else if(event.queryStringParameters['k4-json-streetarts']) {
-                dynamo.scan({
-                    TableName: 'quatremille_places'
-                }, (err, data) => {
-                    if(!data || !data.Items) {
-                        done(new Error('Cannot find places'));
-                        return;
-                    }
-                    done(err, data.Items.filter(place => place.published && place.type === 'streetart'));
-                });
-            } else if(/\/?quatremille-api\/admin\/places/.test(event.path)) {
-                dynamo.scan({
-                    TableName: 'quatremille_places'
-                }, (err, data) => {
-                    if(!data || !data.Items) {
-                        done(new Error('Cannot find places'));
-                        return;
-                    }
-                    done(err, {result: data.Items});
-                });
-            } else {
-                done(new Error('Unsupported action ' + event.httpMethod + ' ' + event.path));
-            }
-            break;
-        case 'DELETE':
-            if(/\/?admin\/places/.test(event.path)) {
-                dynamo.delete({
-                    TableName: 'quatremille_places',
-                    Key: {_id: parseInt(event.queryStringParameters.place, 10)}
-                }, done);
-            } else {
-                done(new Error('Unsupported action ' + event.httpMethod + ' ' + event.path));
-            }
-            break;
-        case 'POST':
-            request = JSON.parse(event.body);
-            if(/\/?admin\/places/.test(event.path)) {
-                dynamo.delete({
-                    TableName: 'quatremille_places',
-                    Key: {_id: request._id}
-                }, (err, data) => {
-                    if(err) {
-                        done(new Error('Cannot delete such place'));
-                        return;
-                    }
-                    dynamo.put({
-                        TableName: 'quatremille_places',
-                        Item: request
-                    }, done);
-                });
-            } else {
-                done(new Error('Unsupported action ' + event.httpMethod + ' ' + event.path));
-            }
-            break;
-        case 'PUT':
-            request = JSON.parse(event.body);
-            request._id = Math.floor(Math.random() * 100000) + 100000;
-            request.published = true;
-            if(/\/?admin\/places/.test(event.path)) {
-                dynamo.put({
-                    TableName: 'quatremille_places',
-                    Item: request
-                }, done);
-            } else {
-                done(new Error('Unsupported action ' + event.httpMethod + ' ' + event.path));
-            }
-            break;
-        default:
-            done(new Error('Unsupported method ' + event.httpMethod));
-            break;
+    let accessTokenFromClient = req.headers.authorization;
+    if(!accessTokenFromClient) {
+        done(new Error('No authorization mean found'));
+        return;
     }
+    cognitoExpress.validate(accessTokenFromClient, (err, user) => {
+        if(err) {
+            done(new Error('Authorization mean is not valid'));
+            return;
+        }
+        switch(event.httpMethod) {
+            case 'GET':
+                if(/\/?find-books/.test(event.path)) {
+                    if(user['cognito:groups'].indexOf('readers') === -1) {
+                        done(new Error('Authorization does not allow this operation'));
+                        return;
+                    }
+                    /**
+                     * Accepts the following query string parameters:
+                     * -type: red/blue, the type of book
+                     * -dateMin: a minimum date
+                     * -dateMax: a maximum date
+                     * -author: an author name
+                     * -name: a book name
+                     */
+                    dynamo.query({
+                        TableName: 'pasicrisie_documents',
+                        IndexName: 'type',
+                        KeyConditionExpression: 'type = :type',
+                        ExpressionAttributeValues: {
+                            ':type': event.queryStringParameters.type
+                        }
+                    }, (err, data) => {
+                        if(!data || !data.Items) {
+                            done(new Error('Cannot find books'));
+                            return;
+                        }
+                        done(err, {
+                            result: data.Items.filter(book => {
+                                if(book.searchable = false)
+                                    return false;
+                                if(event.queryStringParameters.dateMin && new Date(book.date) < new Date(event.queryStringParameters.dateMin))
+                                    return false;
+                                if(event.queryStringParameters.dateMax && new Date(book.date) > new Date(event.queryStringParameters.dateMax))
+                                    return false;
+                                if(event.queryStringParameters.author && book.author.toLowerCase().indexOf(event.queryStringParameters.author.toLowerCase()) === -1)
+                                    return false;
+                                if(event.queryStringParameters.name && book.name.toLowerCase().indexOf(event.queryStringParameters.name.toLowerCase()) === -1)
+                                    return false;
+                                return true;
+                            })
+                        });
+                    });
+                } else {
+                    done(new Error('Unsupported action ' + event.httpMethod + ' ' + event.path));
+                }
+                break;
+            default:
+                done(new Error('Unsupported method ' + event.httpMethod));
+                break;
+        }
+    });
 };
