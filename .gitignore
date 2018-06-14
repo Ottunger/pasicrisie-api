@@ -1,0 +1,12 @@
+node_modules/*
+npm-debug.log
+
+*.map
+*.d.ts
+.idea
+
+example/node_modules
+!karma.conf.js
+coverage/
+.ng_build
+dist
