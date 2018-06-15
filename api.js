@@ -16,7 +16,7 @@ function uniq(a) {
     return a.filter(item => seen.hasOwnProperty(item)? false : (seen[item] = true));
 }
 function matched(challenge, truth, sep) {
-    if(!challenge) return true;
+    if(!challenge || !truth) return true;
     challenge = challenge.trim();
     if(!challenge) return true;
     const challenges = challenge.split(sep);
@@ -58,18 +58,17 @@ exports.handler = (event, context, callback) => {
                     }
                     /**
                      * Accepts the following query string parameters:
-                     * -type: red/blue, the type of book
+                     * -kind: 2017/bulletin/..., the type of book
                      * -dateMin: a minimum date
                      * -dateMax: a maximum date
                      * -author: an author name
-                     * -name: a book name
+                     * -desc: a book description
                      */
-                    dynamo.query({
+                    dynamo.scan({
                         TableName: 'pasicrisie_documents',
-                        IndexName: 'type',
-                        KeyConditionExpression: 'type = :type',
+                        FilterExpression: 'kind = :kind',
                         ExpressionAttributeValues: {
-                            ':type': event.queryStringParameters.type
+                            ':kind': event.queryStringParameters.kind
                         }
                     }, (err, data) => {
                         if(!data || !data.Items) {
@@ -85,16 +84,16 @@ exports.handler = (event, context, callback) => {
                                     if(event.queryStringParameters.dateMin)
                                         date = new Date(event.queryStringParameters.dateMin);
                                 } catch(e) {}
-                                if(date && new Date(book.date) < date)
+                                if(date && new Date(book.issue) < date)
                                     return false;
                                 date = undefined;
                                 try {
                                     if(event.queryStringParameters.dateMax)
                                         date = new Date(event.queryStringParameters.dateMax);
                                 } catch(e) {}
-                                if(date && new Date(book.date) > date)
+                                if(date && new Date(book.issue) > date)
                                     return false;
-                                return matched(event.queryStringParameters.author, book.author, '&') && matched(event.queryStringParameters.name, book.name, '&')
+                                return matched(event.queryStringParameters.author, book.author, '&') && matched(event.queryStringParameters.desc, book.desc, '&')
                                     && matched(event.queryStringParameters.fulltext, book.fulltext, '&') && matched(event.queryStringParameters.keywords, book.keywords.join(), /[&,; ]/);
                             }).map(e => {
                                 delete e.fulltext;
@@ -103,17 +102,19 @@ exports.handler = (event, context, callback) => {
                         });
                     });
                 } else if(/\/?api\/find-types/.test(event.path)) {
-                    dynamo.query({
+                    dynamo.scan({
                         TableName: 'pasicrisie_documents',
-                        IndexName: 'type',
-                        KeyConditionExpression: 'searchable = true'
+                        FilterExpression: 'searchable = :true',
+                        ExpressionAttributeValues: {
+                            ':true': true
+                        }
                     }, (err, data) => {
                         if(!data || !data.Items) {
                             done(new Error('Cannot find types'));
                             return;
                         }
                         done(err, {
-                            result: uniq(data.Items.map(item => item.type))
+                            result: uniq(data.Items.map(item => item.kind))
                         });
                     });
                 } else {

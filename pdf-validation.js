@@ -27,13 +27,14 @@ exports.handler = (event, context, callback) => {
             }
             dynamo.update({
                 TableName: 'pasicrisie_documents',
-                Key: {_id: keyParts[keyParts.length - 1].split('.')[0]},
-                UpdateExpression: 'set searchable = true'
-                + (event.keywords ? ', keywords = list_append(keywords, :tags)' : '')
-                + (event.date ? ', date = :date' : ''),
+                Key: {_id: keyParts[keyParts.length - 1].split('.')[0], kind: keyParts[0]},
+                UpdateExpression: 'set searchable = :true'
+                    + (event.keywords? ', keywords = list_append(keywords, :tags)' : '')
+                    + (event.issue? ', issue = :issue' : ''),
                 ExpressionAttributeValues: {
+                    ':true': true,
                     ':tags': event.keywords,
-                    ':date': event.date
+                    ':issue': event.issue
                 }
             }, callback);
         });
@@ -52,8 +53,11 @@ exports.handler = (event, context, callback) => {
                 const keyParts = file.Key.split('/');
                 dynamo.update({
                     TableName: 'pasicrisie_documents',
-                    Key: {_id: keyParts[keyParts.length - 1].split('.')[0]},
-                    UpdateExpression: 'set searchable = true'
+                    Key: {_id: keyParts[keyParts.length - 1].split('.')[0], kind: keyParts[0]},
+                    UpdateExpression: 'set searchable = :true',
+                    ExpressionAttributeValues: {
+                        ':true': true
+                    }
                 }, err => {if(err) console.error(err);});
             });
             callback(undefined, data.NextMarker);

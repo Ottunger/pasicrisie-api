@@ -22,11 +22,22 @@ exports.handler = (event, context, callback) => {
             return;
         }
         let rtf = data.Body.toString();
-        rtf = rtf.replace(/[0-9]{5}/g, t => '{\\colortbl ;\\red0\\green0\\blue238;}\n'
-            + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + bucket
-            + '/' + key.replace(/[0-9]{5}/, t) + '"}{\\fldrslt{\\ul\\cf1 ' + t + '}}}');
         rtf2text.string(rtf, (err, fulltext) => {
             fulltext = fulltext || '';
+            //Change RTF: use only the links in the body
+            const matcher = /[^0-9]([0-9]{5}[A-Z]?)[^0-9A-Z]/g, done = {};
+            let matched;
+            while((matched = matcher.exec(fulltext)) !== null) {
+                if(!done[matched[1]]) {
+                    done[matched[1]] = true;
+                    rtf = rtf.replace(new RegExp('[^0-9]' + matched[1] + '[^0-9A-Z]', 'g'), t => {
+                        const firstLetter = t.substring(0, 1), body = t.substring(1, t.length - 1), lastLetter = t.substring(t.length - 1);
+                        return firstLetter + '{\\colortbl ;\\red0\\green0\\blue238;}\n'
+                            + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + bucket.replace('raw-rtf', 'pdf') + '/'
+                            + key.replace(/[0-9]{5}[A-Z]?/, body) + '"}{\\fldrslt{\\ul\\cf1 ' + body + '}}}' + lastLetter;
+                    });
+                }
+            }
             const lowFulltext = fulltext.toLowerCase();
             s3.putObject({
                 Body: rtf,
@@ -42,12 +53,12 @@ exports.handler = (event, context, callback) => {
                     TableName: 'pasicrisie_documents',
                     Item: {
                         _id: keyParts[keyParts.length - 1].split('.')[0],
-                        type: keyParts[0],
+                        kind: keyParts[0],
                         author: 'Pasicrisie',
-                        name: fulltext.substr(0, 1024),
+                        desc: fulltext.substr(0, 1024),
                         keywords: possibleKeywords.filter(k => lowFulltext.indexOf(k) > -1),
-                        date: '1970-01-01',
-                        fulltext: foldersNonFullText.test(key)? '' : fulltext,
+                        issue: '1970-01-01',
+                        fulltext: foldersNonFullText.test(key)? undefined : fulltext,
                         searchable: false
                     }
                 }, callback);
