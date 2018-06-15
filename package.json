@@ -13,6 +13,7 @@
   "author": "IC",
   "license": "MIT",
   "dependencies": {
-    "cognito-express": "2.0.10"
+    "cognito-express": "2.0.10",
+    "rtf2text": "1.0.1"
   }
 }

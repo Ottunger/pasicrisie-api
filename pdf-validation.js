@@ -27,7 +27,7 @@ exports.handler = (event, context, callback) => {
             }
             dynamo.update({
                 TableName: 'pasicrisie_documents',
-                Key: {_id: keyParts[keyParts.length - 1].replace(/\.[^.]+$/, '')},
+                Key: {_id: keyParts[keyParts.length - 1].split('.')[0]},
                 UpdateExpression: 'set searchable = true'
                 + (event.keywords ? ', keywords = list_append(keywords, :tags)' : '')
                 + (event.date ? ', date = :date' : ''),
@@ -52,7 +52,7 @@ exports.handler = (event, context, callback) => {
                 const keyParts = file.Key.split('/');
                 dynamo.update({
                     TableName: 'pasicrisie_documents',
-                    Key: {_id: keyParts[keyParts.length - 1].replace(/\.[^.]+$/, '')},
+                    Key: {_id: keyParts[keyParts.length - 1].split('.')[0]},
                     UpdateExpression: 'set searchable = true'
                 }, err => {if(err) console.error(err);});
             });

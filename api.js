@@ -80,12 +80,25 @@ exports.handler = (event, context, callback) => {
                             result: data.Items.filter(book => {
                                 if(!book.searchable)
                                     return false;
-                                if(event.queryStringParameters.dateMin && new Date(book.date) < new Date(event.queryStringParameters.dateMin))
+                                let date = undefined;
+                                try {
+                                    if(event.queryStringParameters.dateMin)
+                                        date = new Date(event.queryStringParameters.dateMin);
+                                } catch(e) {}
+                                if(date && new Date(book.date) < date)
                                     return false;
-                                if(event.queryStringParameters.dateMax && new Date(book.date) > new Date(event.queryStringParameters.dateMax))
+                                date = undefined;
+                                try {
+                                    if(event.queryStringParameters.dateMax)
+                                        date = new Date(event.queryStringParameters.dateMax);
+                                } catch(e) {}
+                                if(date && new Date(book.date) > date)
                                     return false;
-                                return matched(event.queryStringParameters.author, book.author, '&') && matched(event.queryStringParameters.name, book.name, '&') &&
-                                    matched(event.queryStringParameters.keywords, book.keywords.join(), /[&,; ]/);
+                                return matched(event.queryStringParameters.author, book.author, '&') && matched(event.queryStringParameters.name, book.name, '&')
+                                    && matched(event.queryStringParameters.fulltext, book.fulltext, '&') && matched(event.queryStringParameters.keywords, book.keywords.join(), /[&,; ]/);
+                            }).map(e => {
+                                delete e.fulltext;
+                                return e;
                             })
                         });
                     });
