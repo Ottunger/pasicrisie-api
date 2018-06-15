@@ -2,6 +2,7 @@
 
 const AWS = require('aws-sdk');
 const dynamo = new AWS.DynamoDB.DocumentClient();
+const s3 = new AWS.S3();
 
 /**
  * Expected event format:
@@ -27,9 +28,9 @@ exports.handler = (event, context, callback) => {
             dynamo.update({
                 TableName: 'pasicrisie_documents',
                 Key: {_id: keyParts[keyParts.length - 1].replace(/\.[^.]+$/, '')},
-                UpdateExpression: 'searchable = true'
-                + (event.keywords ? ', set keywords = list_append(keywords, :tags)' : '')
-                + (event.date ? ', set date = :date' : ''),
+                UpdateExpression: 'set searchable = true'
+                + (event.keywords ? ', keywords = list_append(keywords, :tags)' : '')
+                + (event.date ? ', date = :date' : ''),
                 ExpressionAttributeValues: {
                     ':tags': event.keywords,
                     ':date': event.date
@@ -39,7 +40,9 @@ exports.handler = (event, context, callback) => {
     } else {
         s3.listObjects({
             Bucket: event.bucket,
-            MaxKeys: 1000
+            MaxKeys: 1000,
+            Prefix: 'pasicrisie-pdf/',
+            NextMarker: event.pageMarker
         }, (err, data) => {
             if (err) {
                 callback(err);
@@ -50,7 +53,7 @@ exports.handler = (event, context, callback) => {
                 dynamo.update({
                     TableName: 'pasicrisie_documents',
                     Key: {_id: keyParts[keyParts.length - 1].replace(/\.[^.]+$/, '')},
-                    UpdateExpression: 'searchable = true'
+                    UpdateExpression: 'set searchable = true'
                 }, err => {if(err) console.error(err);});
             });
             callback(undefined, data.NextMarker);

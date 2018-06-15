@@ -4,7 +4,7 @@ const AWS = require('aws-sdk');
 const dynamo = new AWS.DynamoDB.DocumentClient();
 const s3 = new AWS.S3();
 
-const foldersToTreatMatcher = /\/blue\//;
+const foldersToTreatMatcher = /bulletin\//;
 const baseS3Url = 'https://s3.eu-west-2.amazonaws.com/';
 
 exports.handler = (event, context, callback) => {
@@ -29,7 +29,8 @@ exports.handler = (event, context, callback) => {
         s3.putObject({
             Body: rtf,
             Bucket: bucket.replace('raw', 'linked'),
-            Key: key
+            Key: key,
+            ACL: 'public-read'
         }, err => {
             if(err) {
                 callback(err);

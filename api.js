@@ -1,8 +1,8 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const CognitoExpress = require('cognito-express');
 const dynamo = new AWS.DynamoDB.DocumentClient();
+const CognitoExpress = require('cognito-express');
 
 const cognitoExpress = new CognitoExpress({
     region: 'eu-west-2',
@@ -10,6 +10,18 @@ const cognitoExpress = new CognitoExpress({
     tokenUse: 'id',
     tokenExpiration: 3600000,
 });
+
+function uniq(a) {
+    const seen = {};
+    return a.filter(item => seen.hasOwnProperty(item)? false : (seen[item] = true));
+}
+function matched(challenge, truth, sep) {
+    if(!challenge) return true;
+    challenge = challenge.trim();
+    if(!challenge) return true;
+    const challenges = challenge.split(sep);
+    return challenges.every(c =>  truth.toLowerCase().indexOf(c.trim().toLowerCase()) > -1);
+}
 
 exports.handler = (event, context, callback) => {
     const done = (err, res) => {
@@ -26,19 +38,20 @@ exports.handler = (event, context, callback) => {
     };
 
     event.queryStringParameters = event.queryStringParameters || {};
-    let accessTokenFromClient = req.headers.authorization;
+    let accessTokenFromClient = event.headers.Authorization;
     if(!accessTokenFromClient) {
         done(new Error('No authorization mean found'));
         return;
     }
     cognitoExpress.validate(accessTokenFromClient, (err, user) => {
+        user['cognito:groups'] = user['cognito:groups'] || [];
         if(err) {
             done(new Error('Authorization mean is not valid'));
             return;
         }
         switch(event.httpMethod) {
             case 'GET':
-                if(/\/?find-books/.test(event.path)) {
+                if(/\/?api\/find-books/.test(event.path)) {
                     if(user['cognito:groups'].indexOf('readers') === -1) {
                         done(new Error('Authorization does not allow this operation'));
                         return;
@@ -65,18 +78,29 @@ exports.handler = (event, context, callback) => {
                         }
                         done(err, {
                             result: data.Items.filter(book => {
-                                if(book.searchable = false)
+                                if(!book.searchable)
                                     return false;
                                 if(event.queryStringParameters.dateMin && new Date(book.date) < new Date(event.queryStringParameters.dateMin))
                                     return false;
                                 if(event.queryStringParameters.dateMax && new Date(book.date) > new Date(event.queryStringParameters.dateMax))
                                     return false;
-                                if(event.queryStringParameters.author && book.author.toLowerCase().indexOf(event.queryStringParameters.author.toLowerCase()) === -1)
-                                    return false;
-                                if(event.queryStringParameters.name && book.name.toLowerCase().indexOf(event.queryStringParameters.name.toLowerCase()) === -1)
-                                    return false;
-                                return true;
+                                return matched(event.queryStringParameters.author, book.author, '&') && matched(event.queryStringParameters.name, book.name, '&') &&
+                                    matched(event.queryStringParameters.keywords, book.keywords.join(), /[&,; ]/);
                             })
+                        });
+                    });
+                } else if(/\/?api\/find-types/.test(event.path)) {
+                    dynamo.query({
+                        TableName: 'pasicrisie_documents',
+                        IndexName: 'type',
+                        KeyConditionExpression: 'searchable = true'
+                    }, (err, data) => {
+                        if(!data || !data.Items) {
+                            done(new Error('Cannot find types'));
+                            return;
+                        }
+                        done(err, {
+                            result: uniq(data.Items.map(item => item.type))
                         });
                     });
                 } else {
