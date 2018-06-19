@@ -5,8 +5,8 @@ const dynamo = new AWS.DynamoDB.DocumentClient();
 const CognitoExpress = require('cognito-express');
 
 const cognitoExpress = new CognitoExpress({
-    region: 'eu-west-2',
-    cognitoUserPoolId: 'eu-west-2_I3zbY3Ita',
+    region: 'eu-central-1',
+    cognitoUserPoolId: 'eu-central-1_TOi0ZoW4p',
     tokenUse: 'id',
     tokenExpiration: 3600000,
 });
@@ -52,7 +52,7 @@ exports.handler = (event, context, callback) => {
         switch(event.httpMethod) {
             case 'GET':
                 if(/\/?api\/find-books/.test(event.path)) {
-                    if(user['cognito:groups'].indexOf('readers') === -1) {
+                    if(user['cognito:groups'].indexOf('bulletin_readers') === -1) {
                         done(new Error('Authorization does not allow this operation'));
                         return;
                     }
