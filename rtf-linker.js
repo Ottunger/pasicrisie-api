@@ -53,44 +53,46 @@ exports.handler = (event, context, callback) => {
                     callback(err);
                     return;
                 }
+                let pdf = [];
                 const rtfStream = new stream.PassThrough();
-                const pdfStream = new stream.Writable();;
-                let pdf = '';
+                const pdfStream = new stream.Writable();
+                pdfStream._write = (chunk, encoding, done) => {
+                    pdf.push(chunk);
+                    if(chunk.toString().indexOf('DocChecksum') > -1) {
+                        s3.putObject({
+                            Body: Buffer.concat(pdf),
+                            Bucket: bucket.replace('raw-rtf', 'pdf'),
+                            Key: key.replace('rtf', 'pdf'),
+                            ACL: 'public-read'
+                        }, err => {
+                            if (err) {
+                                callback(err);
+                                return;
+                            }
+                            dynamo.put({
+                                TableName: 'pasicrisie_documents',
+                                Item: {
+                                    _id: keyParts[keyParts.length - 1].split('.')[0],
+                                    kind: keyParts[0],
+                                    author: 'Pasicrisie',
+                                    desc: fulltext.substr(0, 1024),
+                                    keywords: possibleKeywords.filter(k => lowFulltext.indexOf(k) > -1),
+                                    issue: '1970-01-01',
+                                    fulltext: foldersNonFullText.test(key)? undefined : fulltext,
+                                    searchable: true
+                                }
+                            }, callback);
+                        });
+                    }
+                    done();
+                };
+                pdfStream.on('error', callback);
                 rtfStream.write(rtf);
                 rtfStream.end();
                 rtfStream.pipe(cloudconvert.convert({
                     inputformat: 'rtf',
                     outputformat: 'pdf'
                 })).pipe(pdfStream);
-                pdfStream.on('data', chunk => pdf += chunk.toString());
-                pdfStream.on('end', () => {
-                    console.log(pdf);
-                    s3.putObject({
-                        Body: pdf,
-                        Bucket: bucket.replace('raw-rtf', 'pdf'),
-                        Key: key.replace('rtf', 'pdf'),
-                        ACL: 'public-read'
-                    }, err => {
-                        if (err) {
-                            callback(err);
-                            return;
-                        }
-                        dynamo.put({
-                            TableName: 'pasicrisie_documents',
-                            Item: {
-                                _id: keyParts[keyParts.length - 1].split('.')[0],
-                                kind: keyParts[0],
-                                author: 'Pasicrisie',
-                                desc: fulltext.substr(0, 1024),
-                                keywords: possibleKeywords.filter(k => lowFulltext.indexOf(k) > -1),
-                                issue: '1970-01-01',
-                                fulltext: foldersNonFullText.test(key)? undefined : fulltext,
-                                searchable: true
-                            }
-                        }, callback);
-                    });
-                });
-                pdfStream.on('error', callback);
             });
         });
     });
