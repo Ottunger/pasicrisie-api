@@ -30,16 +30,15 @@ exports.handler = (event, context, callback) => {
                 return;
             }
             //Change RTF: use only the links in the body
-            const matcher = /[^0-9]([0-9]{5}[A-Z]?)[^0-9A-Z]/g, done = {};
+            const matcher = /[^a-z0-9]([0-9]{5}[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {};
             let matched;
             while((matched = matcher.exec(fulltext)) !== null) {
                 if(!done[matched[1]]) {
                     done[matched[1]] = true;
-                    rtf = rtf.replace(new RegExp('[^0-9]' + matched[1] + '[^0-9A-Z]', 'g'), t => {
+                    rtf = rtf.replace(new RegExp('[^a-z0-9]' + matched[1] + '[^\\/0-9a-z]', 'gi'), t => {
                         const firstLetter = t.substring(0, 1), body = t.substring(1, t.length - 1), lastLetter = t.substring(t.length - 1);
-                        return firstLetter + '{\\colortbl ;\\red0\\green0\\blue238;}\n'
-                            + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + bucket.replace('raw-rtf', 'pdf') + '/'
-                            + key.replace(/[0-9]{5}[A-Z]?/, body).replace('rtf', 'pdf') + '"}{\\fldrslt{\\ul\\cf1 ' + body + '}}}' + lastLetter;
+                        return firstLetter + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + bucket.replace('raw-rtf', 'pdf') + '/'
+                            + key.replace(/\/[^/]+$/, '/' + body + '.pdf') + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
                     });
                 }
             }
