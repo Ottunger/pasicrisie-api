@@ -20,7 +20,8 @@ function matched(challenge, truth, sep) {
     challenge = challenge.trim();
     if(!challenge) return true;
     const challenges = challenge.split(sep);
-    return challenges.every(c =>  truth.toLowerCase().indexOf(c.trim().toLowerCase()) > -1);
+    return challenges.some(c =>  truth.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .indexOf(c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()) > -1);
 }
 
 exports.handler = (event, context, callback) => {
@@ -93,8 +94,8 @@ exports.handler = (event, context, callback) => {
                                 } catch(e) {}
                                 if(date && new Date(book.issue) > date)
                                     return false;
-                                return matched(event.queryStringParameters.author, book.author, '&') && matched(event.queryStringParameters.desc, book.desc, '&')
-                                    && matched(event.queryStringParameters.fulltext, book.fulltext, '&') && matched(event.queryStringParameters.keywords, book.keywords.join(), /[&,; ]/);
+                                return matched(event.queryStringParameters.author, book.author, '|') && matched(event.queryStringParameters.desc, book.desc, '|')
+                                    && matched(event.queryStringParameters.fulltext, book.fulltext, '|') && matched(event.queryStringParameters.keywords, book.keywords.join(), /[|,; ]/);
                             }).map(e => {
                                 delete e.fulltext;
                                 return e;
