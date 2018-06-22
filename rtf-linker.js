@@ -3,6 +3,7 @@
 const AWS = require('aws-sdk');
 const dynamo = new AWS.DynamoDB.DocumentClient();
 const s3 = new AWS.S3();
+const fs = require('fs');
 const stream = require('stream');
 const rtf2text = require('rtf2text');
 const cloudconvert = new (require('cloudconvert'))('JGg1oJt2CqnFjx19Ui6LAj3ue56Ax9rpRz37Mlgjv0ajSRYCIkw7LxPf5AA1UyiD');
@@ -18,6 +19,34 @@ const possibleKeywords = ['actes administratifs', 'actes reglementaires', 'agric
     'sante publique', 'securite sociale', 'sites et monuments', 'transports', 'travail', 'tutelle administrative',
     'urbanisme', 'voirie'];
 
+function parseBack(rtf, bucket, key, callback) {
+    rtf2text.string(rtf, (err, fulltext) => {
+        if(err) {
+            callback(err);
+            return;
+        }
+        //Change RTF: use only the links in the body
+        const matcher = /[^a-z0-9]([0-9]{5}[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {};
+        let matched;
+        while((matched = matcher.exec(fulltext)) !== null) {
+            if(!done[matched[1]]) {
+                done[matched[1]] = true;
+                rtf = rtf.replace(new RegExp('[^a-z0-9]' + matched[1] + '[^\\/0-9a-z]', 'gi'), t => {
+                    const firstLetter = t.substring(0, 1), body = t.substring(1, t.length - 1), lastLetter = t.substring(t.length - 1);
+                    return firstLetter + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + bucket.replace('raw-rtf', 'pdf') + '/'
+                        + key.replace(/\/[^/]+$/, '/' + body + '.pdf') + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
+                });
+            }
+        }
+        const lowFulltext = fulltext.toLowerCase();
+        callback(undefined, fulltext, lowFulltext, rtf);
+    });
+}
+exports.parseOut = fileName => {
+    const body = fs.readFileSync(fileName).toString();
+    parseBack(body, 'pasicrisie-pdf', 'bulltin/test.rtf', console.log);
+};
+
 exports.handler = (event, context, callback) => {
     const bucket = event.Records[0].s3.bucket.name, key = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
     const keyParts = key.split('/');
@@ -31,25 +60,11 @@ exports.handler = (event, context, callback) => {
             return;
         }
         let rtf = data.Body.toString();
-        rtf2text.string(rtf, (err, fulltext) => {
+        parseBack(rtf, bucket, key, (err, fulltext, lowFulltext, rtf) => {
             if(err) {
                 callback(err);
                 return;
             }
-            //Change RTF: use only the links in the body
-            const matcher = /[^a-z0-9]([0-9]{5}[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {};
-            let matched;
-            while((matched = matcher.exec(fulltext)) !== null) {
-                if(!done[matched[1]]) {
-                    done[matched[1]] = true;
-                    rtf = rtf.replace(new RegExp('[^a-z0-9]' + matched[1] + '[^\\/0-9a-z]', 'gi'), t => {
-                        const firstLetter = t.substring(0, 1), body = t.substring(1, t.length - 1), lastLetter = t.substring(t.length - 1);
-                        return firstLetter + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + bucket.replace('raw-rtf', 'pdf') + '/'
-                            + key.replace(/\/[^/]+$/, '/' + body + '.pdf') + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
-                    });
-                }
-            }
-            const lowFulltext = fulltext.toLowerCase();
             s3.putObject({
                 Body: rtf,
                 Bucket: bucket.replace('raw', 'linked'),
