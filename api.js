@@ -52,7 +52,9 @@ exports.handler = (event, context, callback) => {
         }
         switch(event.httpMethod) {
             case 'GET':
-                if(/\/?api\/find-books/.test(event.path)) {
+                if(/\/?api\/me/.test(event.path)) {
+                    done(undefined, {result: user});
+                } else if(/\/?api\/find-books/.test(event.path)) {
                     if(user['cognito:groups'].indexOf('bulletin_readers') === -1) {
                         done(new Error('Authorization does not allow this operation'));
                         return;
