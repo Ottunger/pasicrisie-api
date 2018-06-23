@@ -9,7 +9,7 @@ const rtf2text = require('rtf2text');
 const cloudconvert = new (require('cloudconvert'))('JGg1oJt2CqnFjx19Ui6LAj3ue56Ax9rpRz37Mlgjv0ajSRYCIkw7LxPf5AA1UyiD');
 
 const foldersNonFullText = /bulletin\//;
-const baseS3Url = 'https://s3.eu-central-1.amazonaws.com/';
+const baseS3Url = 'https://bulletin.pasicrisie.lu/';
 const possibleKeywords = ['actes administratifs', 'actes reglementaires', 'agriculture', 'armes prohibees', 'autorisation d\'etablissement',
     'communes', 'competence', 'droits de l\'homme et libertes fondamentales', 'elections', 'enseignement', 'entraide judiciaire',
     'environnement', 'etrangers', 'experts', 'expropriation pour cause d\'utilite publique', 'finances publiques', 'fonction publique',
@@ -33,8 +33,8 @@ function parseBack(rtf, bucket, key, callback) {
                 done[matched[1]] = true;
                 rtf = rtf.replace(new RegExp('[^a-z0-9]' + matched[1] + '[^\\/0-9a-z]', 'gi'), t => {
                     const firstLetter = t.substring(0, 1), body = t.substring(1, t.length - 1), lastLetter = t.substring(t.length - 1);
-                    return firstLetter + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + bucket.replace('raw-rtf', 'pdf') + '/'
-                        + key.replace(/\/[^/]+$/, '/' + body + '.pdf') + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
+                    return firstLetter + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type='
+                        + key.replace(/\/[^/]+$/, '%2F' + body) + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
                 });
             }
         }
@@ -83,8 +83,7 @@ exports.handler = (event, context, callback) => {
                         s3.putObject({
                             Body: Buffer.concat(pdf),
                             Bucket: bucket.replace('raw-rtf', 'pdf'),
-                            Key: key.replace('rtf', 'pdf'),
-                            ACL: 'public-read'
+                            Key: key.replace('rtf', 'pdf')
                         }, err => {
                             if (err) {
                                 callback(err);
