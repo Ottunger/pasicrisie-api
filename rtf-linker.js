@@ -34,7 +34,7 @@ function parseBack(rtf, bucket, key, callback) {
                 rtf = rtf.replace(new RegExp('[^a-z0-9]' + matched[1] + '[^\\/0-9a-z]', 'gi'), t => {
                     const firstLetter = t.substring(0, 1), body = t.substring(1, t.length - 1), lastLetter = t.substring(t.length - 1);
                     return firstLetter + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type='
-                        + key.replace(/\/[^/]+$/, '%2F' + body) + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
+                        + key.replace(/\/[^/]+$/, '-' + body) + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
                 });
             }
         }
