@@ -6,7 +6,7 @@ const CognitoExpress = require('cognito-express');
 
 const cognitoExpress = new CognitoExpress({
     region: 'eu-central-1',
-    cognitoUserPoolId: 'eu-central-1_TOi0ZoW4p',
+    cognitoUserPoolId: 'eu-central-1_81WWeoPRL',
     tokenUse: 'id',
     tokenExpiration: 3600000,
 });
