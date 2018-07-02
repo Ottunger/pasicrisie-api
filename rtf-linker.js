@@ -26,7 +26,7 @@ function parseBack(rtf, bucket, key, callback) {
             return;
         }
         //Change RTF: use only the links in the body
-        const matcher = /[^a-z0-9]([0-9]{5}[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {};
+        const matcher = /[^a-z0-9](([0-9]{5}|(9[0-9]{3}))[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {};
         let matched;
         while((matched = matcher.exec(fulltext)) !== null) {
             if(!done[matched[1]]) {
