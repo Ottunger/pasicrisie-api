@@ -16,7 +16,8 @@ function uniq(a) {
     return a.filter(item => seen.hasOwnProperty(item)? false : (seen[item] = true));
 }
 function matched(challenge, truth, sep) {
-    if(!challenge || !truth) return [true];
+    if(!truth) return [];
+    if(!challenge) return [true];
     challenge = challenge.trim();
     if(!challenge) return [true];
     const challenges = challenge.split(sep);

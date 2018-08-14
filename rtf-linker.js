@@ -26,8 +26,7 @@ function parseBack(rtf, bucket, key, callback) {
             return;
         }
         //Check external links to judgements
-        const matcher = /[^a-z0-9](([0-9]{5}|(9[0-9]{3}))[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {};
-        let matched;
+        let matcher = /[^a-z0-9](([0-9]{5}|(9[0-9]{3}))[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {}, matched;
         while((matched = matcher.exec(fulltext)) !== null) {
             if(!done[matched[1]]) {
                 done[matched[1]] = true;
@@ -42,18 +41,32 @@ function parseBack(rtf, bucket, key, callback) {
         //Check external links to bulletin
         possibleKeywords.forEach(keyword => {
             rtf = rtf.replace(new RegExp('v\\. ' + keyword.replace(/[aeiou]/g, '([A-zÀ-ÿ]|(\\\\[^ ]+ [aeiou]?))'), 'gi'),
-                    matched => '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type=bulletin-'
-                        + keyword.replace(/'/g, '').replace(/ /g, '_') + '"}{\\fldrslt{\\ul\\cf5 ' + matched + '}}}');
+                    occurence => '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type=bulletin-'
+                        + keyword.replace(/'/g, '').replace(/ /g, '_') + '"}{\\fldrslt{\\ul\\cf5 ' + occurence + '}}}');
+        });
+
+        //Check internal links, we put them on elements giving page count
+        matcher = /({\\\*\\bkmkstart (_Toc[0-9]+)}\s*)+/g;
+        const bookmarks = [];
+        while((matched = matcher.exec(rtf)) !== null) {
+            bookmarks.push(matched[2]);
+        }
+        matcher = /{[^{]*\([^\\][^)]*[0-9][^)]*\)[^}]*}/g;
+        bookmarks.forEach((bookmark, i) => {
+            if(i === 0) return; //No link to level title
+            matched = matcher.exec(rtf);
+            if(matched === null) return; //Should not happen but eh...
+            rtf = rtf.substr(0, matched.index) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
+                + '"}{\\fldrslt{\\ul\\cf5 ' + matched[0] + '}}}' + rtf.substr(matched.index + matched[0].length);
         });
 
         //Return new text
-        const lowFulltext = fulltext.toLowerCase();
-        callback(undefined, fulltext, lowFulltext, rtf);
+        callback(undefined, fulltext, rtf);
     });
 }
 exports.parseOut = fileName => {
-    const body = fs.readFileSync(fileName);
-    parseBack(body, 'pasicrisie-pdf', 'bulletin/test.rtf', console.log);
+    const body = fs.readFileSync(fileName).toString();
+    parseBack(body, 'pasicrisie-pdf', 'bulletin/test.rtf', () => undefined);
 };
 
 exports.handler = (event, context, callback) => {
@@ -69,7 +82,7 @@ exports.handler = (event, context, callback) => {
             return;
         }
         let rtf = data.Body.toString();
-        parseBack(rtf, bucket, key, (err, fulltext, lowFulltext, rtf) => {
+        parseBack(rtf, bucket, key, (err, fulltext, rtf) => {
             if(err) {
                 callback(err);
                 return;
@@ -98,6 +111,7 @@ exports.handler = (event, context, callback) => {
                                 callback(err);
                                 return;
                             }
+                            const lowFulltext = fulltext.toLowerCase();
                             dynamo.put({
                                 TableName: 'pasicrisie_documents',
                                 Item: {
@@ -107,7 +121,7 @@ exports.handler = (event, context, callback) => {
                                     desc: fulltext.substr(0, 1024),
                                     keywords: possibleKeywords.filter(k => lowFulltext.indexOf(k) > -1),
                                     issue: '1970-01-01',
-                                    fulltext: foldersNonFullText.test(key)? undefined : fulltext,
+                                    fulltext: foldersNonFullText.test(key)? undefined : fulltext.replace(/(\b(\w{1,4})\b(\W|$))/g, '').replace(/\s{2,}/g, ' '),
                                     searchable: true
                                 }
                             }, callback);
