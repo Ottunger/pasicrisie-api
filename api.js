@@ -16,12 +16,13 @@ function uniq(a) {
     return a.filter(item => seen.hasOwnProperty(item)? false : (seen[item] = true));
 }
 function matched(challenge, truth, sep) {
-    if(!challenge || !truth) return true;
+    if(!challenge || !truth) return [true];
     challenge = challenge.trim();
-    if(!challenge) return true;
+    if(!challenge) return [true];
     const challenges = challenge.split(sep);
-    return challenges.some(c =>  truth.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-        .indexOf(c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()) > -1);
+    return challenges.map(c =>  truth.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+            .indexOf(c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()))
+        .filter(index => index > -1).map(index => truth.substr(Math.max(0, index - 200), index + 200));
 }
 
 exports.handler = (event, context, callback) => {
@@ -96,11 +97,10 @@ exports.handler = (event, context, callback) => {
                                 } catch(e) {}
                                 if(date && new Date(book.issue) > date)
                                     return false;
-                                return matched(event.queryStringParameters.author, book.author, '|') && matched(event.queryStringParameters.desc, book.desc, '|')
-                                    && matched(event.queryStringParameters.fulltext, book.fulltext, '|') && matched(event.queryStringParameters.keywords, book.keywords.join(), /[|,; ]/);
-                            }).map(e => {
-                                delete e.fulltext;
-                                return e;
+                                const fullTextMatch = matched(event.queryStringParameters.fulltext, book.fulltext, '|');
+                                book.fulltext = fullTextMatch;
+                                return matched(event.queryStringParameters.author, book.author, '|').length && matched(event.queryStringParameters.desc, book.desc, '|').length
+                                    && fullTextMatch.length && matched(event.queryStringParameters.keywords, book.keywords.join(), /[|,; ]/).length;
                             })
                         });
                     });

@@ -8,14 +8,14 @@ const stream = require('stream');
 const rtf2text = require('rtf2text');
 const cloudconvert = new (require('cloudconvert'))('JGg1oJt2CqnFjx19Ui6LAj3ue56Ax9rpRz37Mlgjv0ajSRYCIkw7LxPf5AA1UyiD');
 
-const foldersNonFullText = /bulletin\//;
+const foldersNonFullText = /non-full-text\//; //all are full text for now
 const baseS3Url = 'https://bulletin.pasicrisie.lu/';
 const possibleKeywords = ['actes administratifs', 'actes reglementaires', 'agriculture', 'armes prohibees', 'autorisation d\'etablissement',
     'communes', 'competence', 'droits de l\'homme et libertes fondamentales', 'elections', 'enseignement', 'entraide judiciaire',
     'environnement', 'etrangers', 'experts', 'expropriation pour cause d\'utilite publique', 'finances publiques', 'fonction publique',
-    'impôts', 'langues', 'logement', 'lois et reglements', 'marches publics', 'noms – prenoms – domicile – etat civil – nationalite',
+    'impots', 'langues', 'logement', 'lois et reglements', 'marches publics', 'noms – prenoms – domicile – etat civil – nationalite',
     'postes et telecommunications', 'pratiques commerciales', 'procedure administrative non contentieuse',
-    'procedure contentieuse', 'protection des donnees', 'recours en annulation', 'recours en reformation', 'régulation économique',
+    'procedure contentieuse', 'protection des donnees', 'recours en annulation', 'recours en reformation', 'regulation economique',
     'sante publique', 'securite sociale', 'sites et monuments', 'transports', 'travail', 'tutelle administrative',
     'urbanisme', 'voirie'];
 
@@ -25,7 +25,7 @@ function parseBack(rtf, bucket, key, callback) {
             callback(err);
             return;
         }
-        //Change RTF: use only the links in the body
+        //Check external links to judgements
         const matcher = /[^a-z0-9](([0-9]{5}|(9[0-9]{3}))[a-z]?(-[0-9])?)[^\\/0-9a-z]/gi, done = {};
         let matched;
         while((matched = matcher.exec(fulltext)) !== null) {
@@ -38,13 +38,22 @@ function parseBack(rtf, bucket, key, callback) {
                 });
             }
         }
+
+        //Check external links to bulletin
+        possibleKeywords.forEach(keyword => {
+            rtf = rtf.replace(new RegExp('v\\. ' + keyword.replace(/[aeiou]/g, '([A-zÀ-ÿ]|(\\\\[^ ]+ [aeiou]?))'), 'gi'),
+                    matched => '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type=bulletin-'
+                        + keyword.replace(/'/g, '').replace(/ /g, '_') + '"}{\\fldrslt{\\ul\\cf5 ' + matched + '}}}');
+        });
+
+        //Return new text
         const lowFulltext = fulltext.toLowerCase();
         callback(undefined, fulltext, lowFulltext, rtf);
     });
 }
 exports.parseOut = fileName => {
-    const body = fs.readFileSync(fileName).toString();
-    parseBack(body, 'pasicrisie-pdf', 'bulltin/test.rtf', console.log);
+    const body = fs.readFileSync(fileName);
+    parseBack(body, 'pasicrisie-pdf', 'bulletin/test.rtf', console.log);
 };
 
 exports.handler = (event, context, callback) => {
