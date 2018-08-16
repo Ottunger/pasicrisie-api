@@ -51,7 +51,7 @@ function parseBack(rtf, bucket, key, callback) {
         while((matched = matcher.exec(rtf)) !== null) {
             bookmarks.push(matched[2]);
         }
-        matcher = /{[^{]*\([^\\][^)]*[0-9][^)]*\)[^}]*}/g;
+        matcher = /{[^{:]*\([^\\][^):]*[0-9][^):]*\)[^}:]*}/g;
         bookmarks.forEach((bookmark, i) => {
             if(i === 0) return; //No link to level title
             matched = matcher.exec(rtf);
