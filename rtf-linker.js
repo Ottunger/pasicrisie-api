@@ -46,7 +46,7 @@ function parseBack(rtf, bucket, key, callback) {
         });
 
         //Check internal links, we put them on elements giving page count
-        matcher = /({\\\*\\bkmkstart (_Toc[0-9]+)}\s*)+/g;
+        matcher = /({\\\*\\bkmkstart (_?Toc[0-9]+)}\s*)+/g;
         const bookmarks = [];
         while((matched = matcher.exec(rtf)) !== null) {
             bookmarks.push(matched[2]);
