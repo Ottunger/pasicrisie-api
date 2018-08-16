@@ -52,13 +52,16 @@ function parseBack(rtf, bucket, key, callback) {
             bookmarks.push(matched[2]);
         }
         matcher = /{[^{:]*\([^\\][^):]*[0-9][^):]*\)[^}:]*}/g;
+        const skipIndex = rtf.indexOf('Division:');
+        let usableRtf = rtf.substr(skipIndex);
         bookmarks.forEach((bookmark, i) => {
             if(i === 0) return; //No link to level title
-            matched = matcher.exec(rtf);
+            matched = matcher.exec(usableRtf);
             if(matched === null) return; //Should not happen but eh...
-            rtf = rtf.substr(0, matched.index) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
-                + '"}{\\fldrslt{\\ul\\cf5 ' + matched[0] + '}}}' + rtf.substr(matched.index + matched[0].length);
+            usableRtf = usableRtf.substr(0, matched.index) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
+                + '"}{\\fldrslt{\\ul\\cf5 ' + matched[0] + '}}}' + usableRtf.substr(matched.index + matched[0].length);
         });
+        rtf = rtf.substr(0, skipIndex) + usableRtf;
 
         //Return new text
         callback(undefined, fulltext, rtf);
