@@ -33,7 +33,7 @@ function parseBack(rtf, bucket, key, callback) {
                 rtf = rtf.replace(new RegExp('[^a-z0-9]' + matched[1] + '[^\\/0-9a-z]', 'gi'), t => {
                     const firstLetter = t.substring(0, 1), body = t.substring(1, t.length - 1), lastLetter = t.substring(t.length - 1);
                     return firstLetter + '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type='
-                        + key.replace(/\/[^/]+$/, '-' + body) + '"}{\\fldrslt{\\ul\\cf5 ' + body + '}}}' + lastLetter;
+                        + key.replace(/\/[^/]+$/, '-' + body) + '"}{\\fldrslt{\\ul\\cf2 ' + body + '}}}' + lastLetter;
                 });
             }
         }
@@ -42,7 +42,7 @@ function parseBack(rtf, bucket, key, callback) {
         possibleKeywords.forEach(keyword => {
             rtf = rtf.replace(new RegExp('v\\. ' + keyword.replace(/[aeiou]/g, '([A-zÀ-ÿ]|(\\\\[^ ]+ [aeiou]?))'), 'gi'),
                     occurence => '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type=bulletin-'
-                        + keyword.replace(/'/g, '').replace(/ /g, '_') + '"}{\\fldrslt{\\ul\\cf5 ' + occurence + '}}}');
+                        + keyword.replace(/'/g, '').replace(/ /g, '_') + '"}{\\fldrslt{\\ul\\cf2 ' + occurence + '}}}');
         });
 
         //Check internal links, we put them on elements giving page count
@@ -62,7 +62,7 @@ function parseBack(rtf, bucket, key, callback) {
             if(matched === null) return; //Should not happen but eh...
             //console.log('\n' + matched[0] + '\n');
             usableRtf = usableRtf.substr(0, matched.index) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
-                + '"}{\\fldrslt{\\ul\\cf5 ' + matched[0] + '}}}' + usableRtf.substr(matched.index + matched[0].length);
+                + '"}{\\fldrslt{\\ul\\cf2 ' + matched[0] + '}}}' + usableRtf.substr(matched.index + matched[0].length);
         });
         rtf = rtf.substr(0, skipIndex) + usableRtf;
 
