@@ -52,19 +52,28 @@ function parseBack(rtf, bucket, key, callback) {
             bookmarks.push(matched[2]);
         }
         //console.log(bookmarks, bookmarks.length);
-        matcher = /{[^{:*]*\([^\\][^):*]*[^a-z0-9][0-9][^):*]*\)[^}:*]*}/g;
+        matcher = /{[^{:*]*\([^\\][^):*]*[^a-z0-9][0-9][^):*]*\)([^}:*]*})?/g;
         let skipIndex = rtf.indexOf('Division:');
         skipIndex = skipIndex === -1? 0 : skipIndex;
-        let usableRtf = rtf.substr(skipIndex);
+        const usableRtf = rtf.substr(skipIndex);
+        let valueUsableRtf = usableRtf, shift = 0;
         bookmarks.forEach((bookmark, i) => {
             if(i === 0) return; //No link to level title
             matched = matcher.exec(usableRtf);
             if(matched === null) return; //Should not happen but eh...
             //console.log('\n' + matched[0] + '\n');
-            usableRtf = usableRtf.substr(0, matched.index) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
-                + '"}{\\fldrslt{\\ul\\cf2 ' + matched[0] + '}}}' + usableRtf.substr(matched.index + matched[0].length);
+            if(/\(.*[{}].*\)/.test(matched[0]))
+                valueUsableRtf = valueUsableRtf.substr(0, shift + matched.index) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
+                    + '"}{\\fldrslt{\\ul\\cf2 ' + matched[0] + '}}}' + valueUsableRtf.substr(shift + matched.index + matched[0].length);
+            else {
+                const beginIndex = matched[0].indexOf('('), endIndex = matched[0].indexOf(')');
+                valueUsableRtf = valueUsableRtf.substr(0, shift + matched.index + beginIndex) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
+                    + '"}{\\fldrslt{\\ul\\cf2 ' + matched[0].substr(beginIndex, endIndex - beginIndex) + '}}}'
+                    + valueUsableRtf.substr(shift + matched.index + endIndex);
+            }
+            shift = valueUsableRtf.length - usableRtf.length;
         });
-        rtf = rtf.substr(0, skipIndex) + usableRtf;
+        rtf = rtf.substr(0, skipIndex) + valueUsableRtf;
 
         //Return new text
         callback(undefined, fulltext, rtf);
