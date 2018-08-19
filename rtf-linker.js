@@ -52,9 +52,9 @@ function parseBack(rtf, bucket, key, callback) {
             bookmarks.push(matched[2]);
         }
         //console.log(bookmarks, bookmarks.length);
-        matcher = /{[^{:*]*\([^\\][^):*]*[^a-z0-9][0-9][^):*]*\)([^}:*]*})?/g;
+        matcher = /{[^{]*\\tab[^}]*}/g;
         let skipIndex = rtf.indexOf('Division:');
-        skipIndex = skipIndex === -1? 0 : skipIndex;
+        skipIndex = skipIndex === -1? 0 : skipIndex + 1;
         const usableRtf = rtf.substr(skipIndex);
         let valueUsableRtf = usableRtf, shift = 0;
         bookmarks.forEach((bookmark, i) => {
@@ -62,15 +62,17 @@ function parseBack(rtf, bucket, key, callback) {
             matched = matcher.exec(usableRtf);
             if(matched === null) return; //Should not happen but eh...
             //console.log('\n' + matched[0] + '\n');
-            if(/\(.*[{}].*\)/.test(matched[0]))
-                valueUsableRtf = valueUsableRtf.substr(0, shift + matched.index) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
-                    + '"}{\\fldrslt{\\ul\\cf2 ' + matched[0] + '}}}' + valueUsableRtf.substr(shift + matched.index + matched[0].length);
-            else {
-                const beginIndex = matched[0].indexOf('('), endIndex = matched[0].indexOf(')');
-                valueUsableRtf = valueUsableRtf.substr(0, shift + matched.index + beginIndex) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
-                    + '"}{\\fldrslt{\\ul\\cf2 ' + matched[0].substr(beginIndex, endIndex - beginIndex) + '}}}'
-                    + valueUsableRtf.substr(shift + matched.index + endIndex);
+            let beginIndex = matched.index - 1, countRight = 1;
+            while(countRight > 0) {
+                beginIndex--;
+                if(usableRtf[beginIndex] === '}')
+                    countRight++;
+                else if(usableRtf[beginIndex] === '{')
+                    countRight--;
             }
+            valueUsableRtf = valueUsableRtf.substr(0, shift + beginIndex) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
+                + '"}{\\fldrslt{\\ul\\cf2 ' + valueUsableRtf.substr(shift + beginIndex, matched.index - beginIndex) + '}}}'
+                + valueUsableRtf.substr(shift + matched.index);
             shift = valueUsableRtf.length - usableRtf.length;
         });
         rtf = rtf.substr(0, skipIndex) + valueUsableRtf;
