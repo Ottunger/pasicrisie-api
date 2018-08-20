@@ -72,15 +72,17 @@ exports.handler = (event, context, callback) => {
                     cs.search({
                         query: decodeURIComponent(event.queryStringParameters.fulltext),
                         filterQuery: 'kind:\'' + event.queryStringParameters.kind + '\'',
-                        highlight: JSON.stringify({fulltext: {format: 'html'}})
+                        highlight: JSON.stringify({fulltext: {format: 'text', pre_tag: '***', post_tag: '***'}})
                     }, (err, data) => {
                         if(!data || !data.hits) {
-                            console.error(err);
                             done(new Error('Cannot find books'));
                             return;
                         }
                         done(err, {
-                            result: data.hits.hit.map(hit => hit.fields)
+                            result: data.hits.hit.map(hit => {
+                                hit.fields.fulltext = [hit.highlights.fulltext];
+                                return hit.fields;
+                            })
                         });
                     });
                 } else if(/\/?api\/find-types/.test(event.path)) {
