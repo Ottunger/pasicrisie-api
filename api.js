@@ -1,7 +1,7 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const dynamo = new AWS.DynamoDB.DocumentClient();
+const cs = new AWS.CloudSearchDomain({endpoint: 'search-pasicrisie-4wqicx6rj444xcjcbos3hamuyy.eu-central-1.cloudsearch.amazonaws.com'});
 const CognitoExpress = require('cognito-express');
 
 const cognitoExpress = new CognitoExpress({
@@ -57,7 +57,7 @@ exports.handler = (event, context, callback) => {
                 if(/\/?api\/me/.test(event.path)) {
                     done(undefined, {result: user});
                 } else if(/\/?api\/find-books/.test(event.path)) {
-                    if(user['cognito:groups'].indexOf('bulletin_readers') === -1) {
+                    if(user['cognito:groups'].indexOf(event.queryStringParameters.kind + '_readers') === -1) {
                         done(new Error('Authorization does not allow this operation'));
                         return;
                     }
@@ -69,58 +69,22 @@ exports.handler = (event, context, callback) => {
                      * -author: an author name
                      * -desc: a book description
                      */
-                    dynamo.scan({
-                        TableName: 'pasicrisie_documents',
-                        FilterExpression: 'kind = :kind',
-                        ExpressionAttributeValues: {
-                            ':kind': event.queryStringParameters.kind
-                        }
+                    cs.search({
+                        query: decodeURIComponent(event.queryStringParameters.fulltext),
+                        filterQuery: 'kind:\'' + event.queryStringParameters.kind + '\'',
+                        highlight: JSON.stringify({fulltext: {format: 'html'}})
                     }, (err, data) => {
-                        if(!data || !data.Items) {
+                        if(!data || !data.hits) {
+                            console.error(err);
                             done(new Error('Cannot find books'));
                             return;
                         }
                         done(err, {
-                            result: data.Items.filter(book => {
-                                if(!book.searchable)
-                                    return false;
-                                let date = undefined;
-                                try {
-                                    if(event.queryStringParameters.dateMin)
-                                        date = new Date(event.queryStringParameters.dateMin);
-                                } catch(e) {}
-                                if(date && new Date(book.issue) < date)
-                                    return false;
-                                date = undefined;
-                                try {
-                                    if(event.queryStringParameters.dateMax)
-                                        date = new Date(event.queryStringParameters.dateMax);
-                                } catch(e) {}
-                                if(date && new Date(book.issue) > date)
-                                    return false;
-                                const fullTextMatch = matched(event.queryStringParameters.fulltext, book.fulltext, '|');
-                                book.fulltext = fullTextMatch;
-                                return matched(event.queryStringParameters.author, book.author, '|').length && matched(event.queryStringParameters.desc, book.desc, '|').length
-                                    && fullTextMatch.length && matched(event.queryStringParameters.keywords, book.keywords.join(), /[|,; ]/).length;
-                            })
+                            result: data.hits.hit.map(hit => hit.fields)
                         });
                     });
                 } else if(/\/?api\/find-types/.test(event.path)) {
-                    dynamo.scan({
-                        TableName: 'pasicrisie_documents',
-                        FilterExpression: 'searchable = :true',
-                        ExpressionAttributeValues: {
-                            ':true': true
-                        }
-                    }, (err, data) => {
-                        if(!data || !data.Items) {
-                            done(new Error('Cannot find types'));
-                            return;
-                        }
-                        done(err, {
-                            result: uniq(data.Items.map(item => item.kind))
-                        });
-                    });
+                    done(undefined, {result: ['bulletin']});
                 } else {
                     done(new Error('Unsupported action ' + event.httpMethod + ' ' + event.path));
                 }

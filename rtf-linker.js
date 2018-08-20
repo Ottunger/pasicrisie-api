@@ -1,7 +1,7 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const dynamo = new AWS.DynamoDB.DocumentClient();
+const cs = new AWS.CloudSearchDomain({endpoint: 'doc-pasicrisie-4wqicx6rj444xcjcbos3hamuyy.eu-central-1.cloudsearch.amazonaws.com'});
 const s3 = new AWS.S3();
 const fs = require('fs');
 const stream = require('stream');
@@ -115,46 +115,46 @@ exports.handler = (event, context, callback) => {
                     callback(err);
                     return;
                 }
-                let pdf = [];
-                const rtfStream = new stream.PassThrough();
-                const pdfStream = new stream.Writable();
-                pdfStream._write = (chunk, encoding, done) => {
-                    pdf.push(chunk);
-                    if(chunk.toString().indexOf('DocChecksum') > -1) {
-                        s3.putObject({
-                            Body: Buffer.concat(pdf),
-                            Bucket: bucket.replace('raw-rtf', 'pdf'),
-                            Key: key.replace('rtf', 'pdf')
-                        }, err => {
-                            if (err) {
-                                callback(err);
-                                return;
-                            }
-                            const lowFulltext = fulltext.toLowerCase();
-                            dynamo.put({
-                                TableName: 'pasicrisie_documents',
-                                Item: {
-                                    _id: keyParts[keyParts.length - 1].split('.')[0],
-                                    kind: keyParts[0],
-                                    author: 'Pasicrisie',
-                                    desc: fulltext.substr(0, 1024),
-                                    keywords: possibleKeywords.filter(k => lowFulltext.indexOf(k) > -1),
-                                    issue: '1970-01-01',
-                                    fulltext: foldersNonFullText.test(key)? undefined : fulltext.replace(/(\b(\w{1,4})\b(\W|$))/g, '').replace(/\s{2,}/g, ' '),
-                                    searchable: true
-                                }
-                            }, callback);
-                        });
+                cs.uploadDocuments({
+                    contentType: 'application/json',
+                    documents: JSON.stringify([{
+                        type: 'add',
+                        id: keyParts[keyParts.length - 1].split('.')[0],
+                        fields: {
+                            id: keyParts[keyParts.length - 1].split('.')[0],
+                            kind: keyParts[0],
+                            author: 'Pasicrisie',
+                            issue: '1970-01-01T00:00:00Z',
+                            fulltext: fulltext
+                        }
+                    }])
+                }, err => {
+                    if (err) {
+                        callback(err);
+                        return;
                     }
-                    done();
-                };
-                pdfStream.on('error', callback);
-                rtfStream.write(rtf);
-                rtfStream.end();
-                rtfStream.pipe(cloudconvert.convert({
-                    inputformat: 'rtf',
-                    outputformat: 'pdf'
-                })).pipe(pdfStream);
+                    let pdf = [];
+                    const rtfStream = new stream.PassThrough();
+                    const pdfStream = new stream.Writable();
+                    pdfStream._write = (chunk, encoding, done) => {
+                        pdf.push(chunk);
+                        if (chunk.toString().indexOf('DocChecksum') > -1) {
+                            s3.putObject({
+                                Body: Buffer.concat(pdf),
+                                Bucket: bucket.replace('raw-rtf', 'pdf'),
+                                Key: key.replace('rtf', 'pdf')
+                            }, callback);
+                        }
+                        done();
+                    };
+                    pdfStream.on('error', callback);
+                    rtfStream.write(rtf);
+                    rtfStream.end();
+                    rtfStream.pipe(cloudconvert.convert({
+                        inputformat: 'rtf',
+                        outputformat: 'pdf'
+                    })).pipe(pdfStream);
+                });
             });
         });
     });
