@@ -80,7 +80,14 @@ exports.handler = (event, context, callback) => {
                         }
                         done(err, {
                             result: data.hits.hit.map(hit => {
-                                hit.fields.fulltext = [hit.highlights.fulltext];
+                                if(hit.highlights.fulltext.indexOf('***') > -1)
+                                    hit.fields.fulltext = [hit.highlights.fulltext];
+                                else {
+                                    const firstWord = event.queryStringParameters.fulltext.split(' ').filter(w => w.length > 3)[0];
+                                    const app = hit.fields.fulltext[0].indexOf(firstWord.substr(0, firstWord.length - 3));
+                                    hit.fields.fulltext = [hit.fields.fulltext[0].substr(Math.max(0, app - 200), 400)
+                                        .replace(new RegExp(firstWord + '[^\s]*', 'gi'), match => '***' + match + '***')];
+                                }
                                 return hit.fields;
                             })
                         });
