@@ -22,7 +22,7 @@ function matched(challenge, truth, sep) {
     if(!challenge) return [true];
     const challenges = challenge.split(sep);
     return challenges.map(c =>  truth.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-            .indexOf(c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()))
+        .indexOf(c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()))
         .filter(index => index > -1).map(index => truth.substr(Math.max(0, index - 200), index + 200));
 }
 
@@ -80,14 +80,16 @@ exports.handler = (event, context, callback) => {
                         }
                         done(err, {
                             result: data.hits.hit.map(hit => {
+                                const fulltext = hit.fields.fulltext[0];
                                 if(hit.highlights.fulltext.indexOf('***') > -1)
                                     hit.fields.fulltext = [hit.highlights.fulltext];
                                 else {
                                     const firstWord = event.queryStringParameters.fulltext.split(' ').filter(w => w.length > 3)[0];
-                                    const app = hit.fields.fulltext[0].indexOf(firstWord.substr(0, firstWord.length - 3));
-                                    hit.fields.fulltext = [hit.fields.fulltext[0].substr(Math.max(0, app - 200), 400)
+                                    const app = fulltext.indexOf(firstWord.substr(0, firstWord.length - 3));
+                                    hit.fields.fulltext = [fulltext.substr(Math.max(0, app - 200), 400)
                                         .replace(new RegExp(firstWord + '[^\s]*', 'gi'), match => '***' + match + '***')];
                                 }
+                                hit.fields.distance = fulltext.indexOf(hit.fields.fulltext[0].replace(/\*\*\*/g, '')) / fulltext.length;
                                 return hit.fields;
                             })
                         });
