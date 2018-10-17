@@ -81,13 +81,18 @@ exports.handler = (event, context, callback) => {
                         done(err, {
                             result: data.hits.hit.map(hit => {
                                 const fulltext = hit.fields.fulltext[0];
-                                if(hit.highlights.fulltext.indexOf('***') > -1)
+                                if(hit.highlights.fulltext.indexOf('***') > -1 && /\s[0-9]+\s*\.[^0-9]/.test(hit.highlights.fulltext))
                                     hit.fields.fulltext = [hit.highlights.fulltext];
                                 else {
                                     const firstWord = event.queryStringParameters.fulltext.split(' ').filter(w => w.length > 3)[0];
-                                    const app = fulltext.indexOf(firstWord.substr(0, firstWord.length - 3));
-                                    hit.fields.fulltext = [fulltext.substr(Math.max(0, app - 200), 400)
-                                        .replace(new RegExp(firstWord + '[^\s]*', 'gi'), match => '***' + match + '***')];
+                                    let app = Math.max(0, fulltext.indexOf(firstWord.substr(0, firstWord.length - 3)) - 200);
+                                    hit.fields.fulltext = [fulltext.substr(app, 400)];
+                                    while(app > 0 && !/\s[0-9]+\s*\.[^0-9]/.test(hit.fields.fulltext[0])) {
+                                        const previousApp = app;
+                                        app = Math.max(0, app - 200);
+                                        hit.fields.fulltext[0] = fulltext.substring(app, previousApp) + hit.fields.fulltext[0];
+                                    }
+                                    hit.fields.fulltext[0] = hit.fields.fulltext[0].replace(new RegExp(firstWord + '[^\s]*', 'gi'), match => '***' + match + '***');
                                 }
                                 hit.fields.distance = fulltext.indexOf(hit.fields.fulltext[0].replace(/\*\*\*/g, '')) / fulltext.length;
                                 return hit.fields;
