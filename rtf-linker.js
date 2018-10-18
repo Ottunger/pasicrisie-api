@@ -4,9 +4,8 @@ const AWS = require('aws-sdk');
 const cs = new AWS.CloudSearchDomain({endpoint: 'doc-pasicrisie-4wqicx6rj444xcjcbos3hamuyy.eu-central-1.cloudsearch.amazonaws.com'});
 const s3 = new AWS.S3();
 const fs = require('fs');
-const stream = require('stream');
 const rtf2text = require('rtf2text');
-const cloudconvert = new (require('cloudconvert'))('JGg1oJt2CqnFjx19Ui6LAj3ue56Ax9rpRz37Mlgjv0ajSRYCIkw7LxPf5AA1UyiD');
+const convertapi = require('convertapi')('cW6UKhaYOtrPEhZT');
 
 const foldersNonFullText = /non-full-text\//; //all are full text for now
 const baseS3Url = 'https://bulletin.pasicrisie.lu/';
@@ -61,18 +60,24 @@ function parseBack(rtf, bucket, key, callback) {
             if(i === 0) return; //No link to level title
             matched = matcher.exec(usableRtf);
             if(matched === null) return; //Should not happen but eh...
-            //console.log('\n' + matched[0] + '\n');
-            let beginIndex = matched.index - 1, countRight = 1;
-            while(countRight > 0) {
-                beginIndex--;
-                if(usableRtf[beginIndex] === '}')
-                    countRight++;
-                else if(usableRtf[beginIndex] === '{')
-                    countRight--;
+            let beginIndex = matched.index, endIndex = matched.index + matched[0].length + 1, countLeft = 1, lastDeacreaseBracket = false;
+            while(countLeft > 0 || !lastDeacreaseBracket) {
+                endIndex++;
+                if(usableRtf[endIndex] === ')' && usableRtf[endIndex + 1] === '}') {
+                    lastDeacreaseBracket = true;
+                    countLeft--;
+                } else if(usableRtf[endIndex - 1] !== ')' && usableRtf[endIndex] === '}') {
+                    lastDeacreaseBracket = false;
+                    countLeft--;
+                } else if(usableRtf[endIndex] === '{') {
+                    countLeft++;
+                }
             }
+            endIndex += 2;
+            console.log('------> FROM: ' + matched[0] + '\n------> TO:' + usableRtf.substring(beginIndex, endIndex) + '\n');
             valueUsableRtf = valueUsableRtf.substr(0, shift + beginIndex) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
-                + '"}{\\fldrslt{\\ul\\cf2 ' + valueUsableRtf.substr(shift + beginIndex, matched.index - beginIndex) + '}}}'
-                + valueUsableRtf.substr(shift + matched.index);
+                + '"}{\\fldrslt{\\ul\\cf2 ' + usableRtf.substring(beginIndex, endIndex) + '}}}'
+                + valueUsableRtf.substr(shift + endIndex);
             shift = valueUsableRtf.length - usableRtf.length;
         });
         rtf = rtf.substr(0, skipIndex) + valueUsableRtf;
@@ -81,12 +86,29 @@ function parseBack(rtf, bucket, key, callback) {
         callback(undefined, fulltext, rtf);
     });
 }
-exports.parseOut = fileName => {
-    const body = fs.readFileSync(fileName).toString();
-    parseBack(body, 'pasicrisie-pdf', 'bulletin/test.rtf', (_, __, rtf) => {
-        fs.writeFileSync(fileName.replace(/.rtf$/, '-linked.rtf'), rtf);
+
+function convertToPdf(rtf, callback) {
+    const tempName = '/tmp/' + Math.random() + '.rtf';
+    fs.writeFile(tempName, rtf, err => {
+        if(err) {
+            console.log('Cannot write temp file');
+            callback(err);
+            return;
+        }
+        convertapi.convert('pdf', {File: tempName}).then(result => {
+            result.file.save(tempName).then(() => {
+                fs.readFile(tempName, (err, data) => {
+                    if(err) {
+                        console.log('Cannot read temp file');
+                        callback(err);
+                        return;
+                    }
+                    callback(undefined, data);
+                });
+            }, callback);
+        }, callback);
     });
-};
+}
 
 exports.handler = (event, context, callback) => {
     const bucket = event.Records[0].s3.bucket.name, key = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
@@ -133,29 +155,29 @@ exports.handler = (event, context, callback) => {
                         callback(err);
                         return;
                     }
-                    let pdf = [];
-                    const rtfStream = new stream.PassThrough();
-                    const pdfStream = new stream.Writable();
-                    pdfStream._write = (chunk, encoding, done) => {
-                        pdf.push(chunk);
-                        if (chunk.toString().indexOf('DocChecksum') > -1) {
-                            s3.putObject({
-                                Body: Buffer.concat(pdf),
-                                Bucket: bucket.replace('raw-rtf', 'pdf'),
-                                Key: key.replace('rtf', 'pdf')
-                            }, callback);
+                    convertToPdf(rtf, (err, pdfBuffer) => {
+                        if(err) {
+                            callback(err);
+                            return;
                         }
-                        done();
-                    };
-                    pdfStream.on('error', callback);
-                    rtfStream.write(rtf);
-                    rtfStream.end();
-                    rtfStream.pipe(cloudconvert.convert({
-                        inputformat: 'rtf',
-                        outputformat: 'pdf'
-                    })).pipe(pdfStream);
+                        s3.putObject({
+                            Body: pdfBuffer,
+                            Bucket: bucket.replace('raw-rtf', 'pdf'),
+                            Key: key.replace('rtf', 'pdf')
+                        }, callback);
+                    });
                 });
             });
         });
     });
 };
+
+// This is a main call
+if(process.argv[2]) {
+    console.log('Parsing ' + process.argv[2]);
+    const body = fs.readFileSync(process.argv[2]).toString();
+    parseBack(body, 'pasicrisie-pdf', 'bulletin/test.rtf', (_, __, rtf) => {
+        fs.writeFileSync(process.argv[2].replace(/.rtf$/, '-linked.rtf'), rtf);
+        convertToPdf(rtf, (_, pdfBuffer) => fs.writeFileSync(process.argv[2].replace(/.rtf$/, '-linked.pdf'), pdfBuffer));
+    });
+}
