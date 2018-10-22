@@ -10,7 +10,7 @@ const convertapi = require('convertapi')('cW6UKhaYOtrPEhZT');
 const foldersNonFullText = /non-full-text\//; //all are full text for now
 const baseS3Url = 'https://bulletin.pasicrisie.lu/';
 const possibleKeywords = ['actes administratifs', 'actes reglementaires', 'agriculture', 'armes prohibees', 'autorisation d\'etablissement',
-    'communes', 'competence', 'droits de l\'homme et libertes fondamentales', 'elections', 'enseignement', 'entraide judiciaire',
+    'communes', 'competence', 'droits de l\'homme', 'droits de l\'homme et libertes fondamentales', 'elections', 'enseignement', 'entraide judiciaire',
     'environnement', 'etrangers', 'experts', 'expropriation pour cause d\'utilite publique', 'finances publiques', 'fonction publique',
     'impots', 'langues', 'logement', 'lois et reglements', 'marches publics', 'noms – prenoms – domicile – etat civil – nationalite',
     'postes et telecommunications', 'pratiques commerciales', 'procedure administrative non contentieuse',
@@ -60,20 +60,24 @@ function parseBack(rtf, bucket, key, callback) {
             if(i === 0) return; //No link to level title
             matched = matcher.exec(usableRtf);
             if(matched === null) return; //Should not happen but eh...
-            let beginIndex = matched.index, endIndex = matched.index + matched[0].length + 1, countLeft = 1, lastDeacreaseBracket = false;
-            while(countLeft > 0 || !lastDeacreaseBracket) {
-                endIndex++;
-                if(usableRtf[endIndex] === ')' && usableRtf[endIndex + 1] === '}') {
-                    lastDeacreaseBracket = true;
-                    countLeft--;
-                } else if(usableRtf[endIndex - 1] !== ')' && usableRtf[endIndex] === '}') {
-                    lastDeacreaseBracket = false;
-                    countLeft--;
-                } else if(usableRtf[endIndex] === '{') {
-                    countLeft++;
+            let beginIndex = matched.index, endIndex = matched.index + matched[0].length + 1, countLeft = 1, lastDecreaseBracket = false;
+            if(matched[0].indexOf(')') === -1) {
+                while(endIndex < usableRtf.length && (countLeft > 0 || !lastDecreaseBracket)) {
+                    endIndex++;
+                    if(/\)\s*(\\par)?\s*}/.test(usableRtf.substr(endIndex, 10))) {
+                        lastDecreaseBracket = true;
+                        countLeft--;
+                    } else if(usableRtf[endIndex] === '}' && !/\)\s*(\\par)?\s*}/.test(usableRtf.substr(endIndex - 10, 10))) {
+                        lastDecreaseBracket = false;
+                        countLeft--;
+                    } else if(usableRtf[endIndex] === '{') {
+                        countLeft++;
+                    }
                 }
+                endIndex = usableRtf.indexOf('}', endIndex) + 1;
+            } else {
+                endIndex--;
             }
-            endIndex += 2;
             console.log('------> FROM: ' + matched[0] + '\n------> TO:' + usableRtf.substring(beginIndex, endIndex) + '\n');
             valueUsableRtf = valueUsableRtf.substr(0, shift + beginIndex) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
                 + '"}{\\fldrslt{\\ul\\cf2 ' + usableRtf.substring(beginIndex, endIndex) + '}}}'
