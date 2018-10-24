@@ -39,7 +39,7 @@ function parseBack(rtf, bucket, key, callback) {
 
         //Check external links to bulletin
         possibleKeywords.forEach(keyword => {
-            rtf = rtf.replace(new RegExp('v\\. ' + keyword.replace(/[aeiou]/g, '([A-zÀ-ÿ]|(\\\\[^ ]+ [aeiou]?))'), 'gi'),
+            rtf = rtf.replace(new RegExp('v\\. ' + keyword.replace(/[aeiou]/g, '([A-zÀ-ÿ]|(\\\\[^ ]+ ?[^ ]+ [aeiou]?))'), 'gi'),
                     occurence => '{\\field{\\*\\fldinst HYPERLINK "' + baseS3Url + '?type=bulletin-'
                         + keyword.replace(/'/g, '').replace(/ /g, '_') + '"}{\\fldrslt{\\ul\\cf2 ' + occurence + '}}}');
         });
@@ -50,7 +50,7 @@ function parseBack(rtf, bucket, key, callback) {
         while((matched = matcher.exec(rtf)) !== null) {
             bookmarks.push(matched[2]);
         }
-        //console.log(bookmarks, bookmarks.length);
+        console.log('------> BOOKMARKS:\n', bookmarks, bookmarks.length);
         matcher = /{[^{]*\\tab[^}]*}/g;
         let skipIndex = rtf.indexOf('Division:');
         skipIndex = skipIndex === -1? 0 : skipIndex + 1;
