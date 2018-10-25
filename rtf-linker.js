@@ -5,7 +5,7 @@ const cs = new AWS.CloudSearchDomain({endpoint: 'doc-pasicrisie-4wqicx6rj444xcjc
 const s3 = new AWS.S3();
 const fs = require('fs');
 const rtf2text = require('rtf2text');
-const convertapi = require('convertapi')('cW6UKhaYOtrPEhZT');
+const convertapi = require('convertapi')('UnoJU525viV9Q4QN');
 
 const foldersNonFullText = /non-full-text\//; //all are full text for now
 const baseS3Url = 'https://bulletin.pasicrisie.lu/';
@@ -80,7 +80,7 @@ function parseBack(rtf, bucket, key, callback) {
             }
             console.log('------> FROM: ' + matched[0] + '\n------> TO:' + usableRtf.substring(beginIndex, endIndex) + '\n');
             valueUsableRtf = valueUsableRtf.substr(0, shift + beginIndex) + '{\\field{\\*\\fldinst HYPERLINK \\\\l "' + bookmark
-                + '"}{\\fldrslt{\\ul\\cf2 ' + usableRtf.substring(beginIndex, endIndex) + '}}}'
+                + '"}{\\fldrslt{\\ul ' + usableRtf.substring(beginIndex, endIndex) + '}}}'
                 + valueUsableRtf.substr(shift + endIndex);
             shift = valueUsableRtf.length - usableRtf.length;
         });
