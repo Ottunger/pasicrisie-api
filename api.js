@@ -1,9 +1,13 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const cs = new AWS.CloudSearchDomain({endpoint: 'search-pasicrisie-4wqicx6rj444xcjcbos3hamuyy.eu-central-1.cloudsearch.amazonaws.com'});
+const elasticsearch = require('elasticsearch');
 const CognitoExpress = require('cognito-express');
 
+const esClient = new elasticsearch.Client({
+    host: 'ec2-54-93-43-68.eu-central-1.compute.amazonaws.com:9200',
+    log: 'error'
+});
 const cognitoExpress = new CognitoExpress({
     region: 'eu-central-1',
     cognitoUserPoolId: 'eu-central-1_81WWeoPRL',
@@ -69,33 +73,29 @@ exports.handler = (event, context, callback) => {
                      * -author: an author name
                      * -desc: a book description
                      */
-                    cs.search({
-                        query: decodeURIComponent(event.queryStringParameters.fulltext),
-                        filterQuery: 'kind:\'' + event.queryStringParameters.kind + '\'',
-                        highlight: JSON.stringify({fulltext: {format: 'text', pre_tag: '***', post_tag: '***'}})
+                    esClient.search({
+                        index: 'documents',
+                        q: 'fulltext:\'' + decodeURIComponent(event.queryStringParameters.fulltext) + '\'',
+                        type: event.queryStringParameters.kind
                     }, (err, data) => {
                         if(!data || !data.hits) {
                             done(new Error('Cannot find books'));
                             return;
                         }
                         done(err, {
-                            result: data.hits.hit.map(hit => {
-                                const fulltext = hit.fields.fulltext[0];
-                                if(hit.highlights.fulltext.indexOf('***') > -1 && /\s[0-9]+\s*\.[^0-9]/.test(hit.highlights.fulltext))
-                                    hit.fields.fulltext = [hit.highlights.fulltext];
-                                else {
-                                    const firstWord = event.queryStringParameters.fulltext.split(' ').filter(w => w.length > 3)[0];
-                                    let app = Math.max(0, fulltext.indexOf(firstWord.substr(0, firstWord.length - 3)) - 200);
-                                    hit.fields.fulltext = [fulltext.substr(app, 400)];
-                                    while(app > 0 && !/\s[0-9]+\s*\.[^0-9]/.test(hit.fields.fulltext[0])) {
-                                        const previousApp = app;
-                                        app = Math.max(0, app - 200);
-                                        hit.fields.fulltext[0] = fulltext.substring(app, previousApp) + hit.fields.fulltext[0];
-                                    }
-                                    hit.fields.fulltext[0] = hit.fields.fulltext[0].replace(new RegExp(firstWord + '[^\s]*', 'gi'), match => '***' + match + '***');
+                            result: data.hits.hits.map(hit => {
+                                const fulltext = hit._source.fulltext;
+                                const firstWord = event.queryStringParameters.fulltext.split(' ').filter(w => w.length > 3)[0];
+                                let app = Math.max(0, fulltext.indexOf(firstWord.substr(0, firstWord.length - 3)) - 200);
+                                hit._source.fulltext = fulltext.substr(app, 400);
+                                while(app > 0 && !/\s[0-9]+\s*\.[^0-9]/.test(hit._source.fulltext)) {
+                                    const previousApp = app;
+                                    app = Math.max(0, app - 200);
+                                    hit._source.fulltext = fulltext.substring(app, previousApp) + hit._source.fulltext;
                                 }
-                                hit.fields.distance = fulltext.indexOf(hit.fields.fulltext[0].replace(/\*\*\*/g, '')) / fulltext.length;
-                                return hit.fields;
+                                hit._source.fulltext = hit._source.fulltext.replace(new RegExp(firstWord + '[^\s]*', 'gi'), match => '***' + match + '***');
+                                hit._source.distance = fulltext.indexOf(hit._source.fulltext.replace(/\*\*\*/g, '')) / fulltext.length;
+                                return hit._source;
                             })
                         });
                     });

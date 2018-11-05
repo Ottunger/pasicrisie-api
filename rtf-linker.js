@@ -1,11 +1,16 @@
 'use strict';
 
 const AWS = require('aws-sdk');
-const cs = new AWS.CloudSearchDomain({endpoint: 'doc-pasicrisie-4wqicx6rj444xcjcbos3hamuyy.eu-central-1.cloudsearch.amazonaws.com'});
+const elasticsearch = require('elasticsearch');
 const s3 = new AWS.S3();
 const fs = require('fs');
 const rtf2text = require('rtf2text');
 const convertapi = require('convertapi')('UnoJU525viV9Q4QN');
+
+const esClient = new elasticsearch.Client({
+    host: 'ec2-54-93-43-68.eu-central-1.compute.amazonaws.com:9200',
+    log: 'error'
+});
 
 const foldersNonFullText = /non-full-text\//; //all are full text for now
 const baseS3Url = 'https://bulletin.pasicrisie.lu/';
@@ -141,19 +146,17 @@ exports.handler = (event, context, callback) => {
                     callback(err);
                     return;
                 }
-                cs.uploadDocuments({
-                    contentType: 'application/json',
-                    documents: JSON.stringify([{
-                        type: 'add',
+                esClient.index({
+                    index: 'documents',
+                    type: keyParts[0],
+                    id: keyParts[keyParts.length - 1].split('.')[0],
+                    body: {
                         id: keyParts[keyParts.length - 1].split('.')[0],
-                        fields: {
-                            id: keyParts[keyParts.length - 1].split('.')[0],
-                            kind: keyParts[0],
-                            author: 'Pasicrisie',
-                            issue: '1970-01-01T00:00:00Z',
-                            fulltext: fulltext
-                        }
-                    }])
+                        kind: keyParts[0],
+                        author: 'Pasicrisie',
+                        issue: '1970-01-01T00:00:00Z',
+                        fulltext: fulltext
+                    }
                 }, err => {
                     if (err) {
                         callback(err);

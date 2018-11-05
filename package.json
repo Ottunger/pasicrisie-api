@@ -15,6 +15,7 @@
   "dependencies": {
     "cognito-express": "2.0.10",
     "convertapi": "1.1.0",
+    "elasticsearch": "15.2.0",
     "rtf2text": "1.0.1"
   }
 }
