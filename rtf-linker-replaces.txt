@@ -1,0 +1,18 @@
+etrangers:
+if(i === 0 || i === 11 || i === 12 || i === 17 || i === 18 || i === 19 || i > 26
+
+impots:
+if(i === 3 || i === 11 || i === 31 || i === 33 || i === 34) matcher.exec(usableRtf);
+if(i == 9) {matcher.exec(usableRtf); matcher.exec(usableRtf);}
+if(i == 37) {matcher.exec(usableRtf); matcher.exec(usableRtf); matcher.exec(usableRtf); matcher.exec(usableRtf);}
+if(i === 0 || i > 43) return; //No link to level title
+
+recours_en_annulation:
+if(true) return; //No link to level title
+
+transports:
+if(i === 4) matcher.exec(usableRtf);
+if(i === 0 || i === 4 || i === 5 || i === 6) return; //No link to level title
+
+
+
