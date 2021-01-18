@@ -5,7 +5,7 @@ const elasticsearch = require('elasticsearch');
 const CognitoExpress = require('cognito-express');
 
 const esClient = new elasticsearch.Client({
-    host: 'ec2-54-93-43-68.eu-central-1.compute.amazonaws.com:9200',
+    host: 'ec2-3-127-39-221.eu-central-1.compute.amazonaws.com:9200',
     log: 'error'
 });
 const cognitoExpress = new CognitoExpress({
@@ -51,11 +51,13 @@ exports.handler = (event, context, callback) => {
         return;
     }
     cognitoExpress.validate(accessTokenFromClient, (err, user) => {
-        user['cognito:groups'] = user['cognito:groups'] || [];
+        console.warn(err);
+        console.log(user);
         if(err) {
             done(new Error('Authorization mean is not valid'));
             return;
         }
+        user['cognito:groups'] = user['cognito:groups'] || [];
         switch(event.httpMethod) {
             case 'GET':
                 if(/\/?api\/me/.test(event.path)) {

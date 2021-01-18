@@ -8,7 +8,7 @@ const rtf2text = require('rtf2text');
 const convertapi = require('convertapi')('UnoJU525viV9Q4QN');
 
 const esClient = new elasticsearch.Client({
-    host: 'ec2-54-93-43-68.eu-central-1.compute.amazonaws.com:9200',
+    host: 'ec2-3-127-39-221.eu-central-1.compute.amazonaws.com:9200',
     log: 'error'
 });
 
