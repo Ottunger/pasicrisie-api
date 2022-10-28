@@ -5,7 +5,7 @@ const elasticsearch = require('elasticsearch');
 const CognitoExpress = require('cognito-express');
 
 const esClient = new elasticsearch.Client({
-    host: 'ec2-3-127-39-221.eu-central-1.compute.amazonaws.com:9200',
+    host: '3.120.27.222:9200',
     log: 'error'
 });
 const cognitoExpress = new CognitoExpress({
